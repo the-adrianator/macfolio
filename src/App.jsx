@@ -1,10 +1,10 @@
-import React from "react";
+import Navbar from "@components/navbar";
 
 const App = () => {
   return (
-    <div>
-      <h1 className="text-3xl font-bold underline">Welcome to my Macfolio</h1>
-    </div>
+    <main>
+      <Navbar />
+    </main>
   );
 };
 
