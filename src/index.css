@@ -89,9 +89,25 @@ body {
 
   #dock {
     @apply absolute bottom-5 left-1/2 -translate-x-1/2 z-50 select-none max-sm:hidden;
+    overflow: visible;
+    will-change: transform;
 
     .dock-container {
-      @apply bg-white/20 backdrop-blur-md justify-between rounded-2xl p-1.5 flex items-end gap-1.5;
+      @apply bg-white/20 backdrop-blur-md rounded-2xl p-1.5 flex items-end gap-1.5;
+      justify-content: center;
+      overflow: visible;
+      will-change: width;
+      align-items: flex-end;
+      flex-shrink: 0;
+      /* Height will be set via GSAP, but prevent flex from growing it */
+      flex-basis: auto;
+
+      /* Ensure wrapper divs can expand to accommodate scaled icons */
+      > div {
+        flex-shrink: 0;
+        overflow: visible;
+        will-change: width;
+      }
     }
 
     .tooltip {
@@ -100,6 +116,8 @@ body {
 
     .dock-icon {
       @apply size-14 3xl:size-20 cursor-pointer;
+      transform-origin: center bottom;
+      will-change: transform;
 
       img {
         @apply object-cover object-center;
