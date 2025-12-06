@@ -14,184 +14,129 @@ const Dock = () => {
     if (!dock || !dockSection) return;
 
     const icons = dock.querySelectorAll(".dock-icon");
-
-    // Animation parameters - matching macOS dock behavior
-    const maxScale = 1.8; // Maximum scale for icons
-    const baseScale = 1; // Base scale (normal size)
-    const scaleRange = maxScale - baseScale;
-    const maxDistance = 150; // Distance at which scaling effect stops
-
-    // Dock reveal parameters
-    const revealDistance = 100; // Distance from bottom to start revealing dock
-    const dockHiddenY = 150; // How far down the dock is hidden (in pixels)
-    const dockVisibleY = 0; // Dock visible position
-
-    // Store current icon scales and base sizes to calculate dock size
     const iconScales = new Map();
     const iconBaseSizes = new Map();
 
-    // Initialize icon base sizes and scales
+    // Constants
+    const CONFIG = {
+      maxScale: 1.8,
+      baseScale: 1,
+      maxDistance: 150,
+      revealDistance: 100,
+      dockHiddenY: 150,
+      dockVisibleY: 0,
+      gap: 6,
+      padding: 6,
+      animDuration: 0.3,
+      revealDuration: 0.4,
+      ease: "power2.out",
+    };
+
+    // Initialize icons
     let baseIconHeight = 0;
     icons.forEach((icon) => {
       const { width, height } = icon.getBoundingClientRect();
       iconBaseSizes.set(icon, { width, height });
-      iconScales.set(icon, baseScale);
-      // Store the maximum base icon height
+      iconScales.set(icon, CONFIG.baseScale);
       baseIconHeight = Math.max(baseIconHeight, height);
-
-      // Initialize wrapper div width to base icon width
-      const wrapperDiv = icon.parentElement;
-      if (wrapperDiv) {
-        gsap.set(wrapperDiv, { width: width });
-      }
+      gsap.set(icon.parentElement, { width });
     });
 
-    // Set fixed height for dock container (base icon height + padding)
-    const padding = 6; // p-1.5 = 6px
-    const fixedHeight = baseIconHeight + padding * 2;
-    // Lock the height so it never changes - only width should animate
+    // Set fixed height
+    const fixedHeight = baseIconHeight + CONFIG.padding * 2;
     gsap.set(dock, {
       height: fixedHeight,
       maxHeight: fixedHeight,
       minHeight: fixedHeight,
     });
 
+    // Helper functions
+    const getIconData = (icon) => ({
+      baseSize: iconBaseSizes.get(icon),
+      wrapperDiv: icon.parentElement,
+      scale: iconScales.get(icon) || CONFIG.baseScale,
+    });
+
+    const animateIcon = (icon, scale, width) => {
+      const { wrapperDiv } = getIconData(icon);
+      iconScales.set(icon, scale);
+      const animProps = { duration: CONFIG.animDuration, ease: CONFIG.ease };
+      if (wrapperDiv) gsap.to(wrapperDiv, { width, ...animProps });
+      gsap.to(icon, { scale, ...animProps });
+    };
+
+    const calculateScale = (distance) => {
+      const intensity = Math.exp(
+        -(Math.min(distance / CONFIG.maxDistance, 1) ** 2 * 3)
+      );
+      return (
+        CONFIG.baseScale + (CONFIG.maxScale - CONFIG.baseScale) * intensity
+      );
+    };
+
     const calculateDockWidth = () => {
-      const gap = 6; // gap-1.5 = 6px - uniform spacing between icons
-      const padding = 6; // p-1.5 = 6px
-
-      // Calculate width based on scaled visual sizes to prevent overlap
-      // We need to ensure each icon's scaled width + gap doesn't cause overlap
-      let totalWidth = 0;
-
-      icons.forEach((icon, index) => {
-        const scale = iconScales.get(icon) || baseScale;
-        const baseSize = iconBaseSizes.get(icon);
-
+      let total = CONFIG.padding * 2;
+      Array.from(icons).forEach((icon, index) => {
+        const { baseSize, scale } = getIconData(icon);
         if (baseSize) {
-          // Use scaled width to ensure no overlap
-          const scaledWidth = baseSize.width * scale;
-          totalWidth += scaledWidth;
-
-          // Add gap after each icon except the last one
-          if (index < icons.length - 1) {
-            totalWidth += gap;
-          }
+          total +=
+            baseSize.width * scale +
+            (index < icons.length - 1 ? CONFIG.gap : 0);
         }
       });
-
-      // Add padding on both sides
-      totalWidth += padding * 2;
-
-      return totalWidth;
+      return total;
     };
 
     const animateDockSize = () => {
-      const width = calculateDockWidth();
       gsap.to(dock, {
-        width: width,
-        duration: 0.3,
-        ease: "power2.out",
+        width: calculateDockWidth(),
+        duration: CONFIG.animDuration,
+        ease: CONFIG.ease,
       });
     };
 
+    const revealDock = () =>
+      gsap.to(dockSection, {
+        y: CONFIG.dockVisibleY,
+        duration: CONFIG.revealDuration,
+        ease: CONFIG.ease,
+      });
+    const hideDock = () =>
+      gsap.to(dockSection, {
+        y: CONFIG.dockHiddenY,
+        duration: CONFIG.revealDuration,
+        ease: CONFIG.ease,
+      });
+
+    // Icon animation
     const animateIcons = (mouseX) => {
       const { left } = dock.getBoundingClientRect();
-
       icons.forEach((icon) => {
         const { left: iconLeft, width: iconWidth } =
           icon.getBoundingClientRect();
-        const iconCenter = iconLeft - left + iconWidth / 2;
-        const distance = Math.abs(mouseX - iconCenter);
-
-        // Calculate scale based on distance (exponential decay)
-        // Closer icons scale more, farther icons scale less
-        const normalizedDistance = Math.min(distance / maxDistance, 1);
-        const intensity = Math.exp(-(normalizedDistance ** 2) * 3); // Exponential decay curve
-        const scale = baseScale + scaleRange * intensity;
-
-        // Store the scale for dock size calculation
-        iconScales.set(icon, scale);
-
-        // Get the wrapper div (parent of the icon button)
-        const wrapperDiv = icon.parentElement;
-        const baseSize = iconBaseSizes.get(icon);
-
-        if (baseSize && wrapperDiv) {
-          // Calculate scaled width for the wrapper div to prevent overlap
-          const scaledWidth = baseSize.width * scale;
-
-          // Animate wrapper div width to accommodate scaled icon
-          gsap.to(wrapperDiv, {
-            width: scaledWidth,
-            duration: 0.3,
-            ease: "power2.out",
-          });
-        }
-
-        // Animate the icon scale with smooth easing
-        gsap.to(icon, {
-          scale: scale,
-          duration: 0.3,
-          ease: "power2.out",
-        });
+        const distance = Math.abs(mouseX - (iconLeft - left + iconWidth / 2));
+        const scale = calculateScale(distance);
+        const { baseSize } = getIconData(icon);
+        if (baseSize) animateIcon(icon, scale, baseSize.width * scale);
       });
-
-      // Animate dock size to accommodate scaled icons
       animateDockSize();
     };
 
+    // Event handlers
     const handleMouseMove = (e) => {
-      const { left } = dock.getBoundingClientRect();
-      const mouseX = e.clientX - left;
-      animateIcons(mouseX);
-
-      // Keep dock visible when hovering over it
-      gsap.to(dockSection, {
-        y: dockVisibleY,
-        duration: 0.4,
-        ease: "power2.out",
-      });
+      animateIcons(e.clientX - dock.getBoundingClientRect().left);
+      revealDock();
     };
 
     const handleMouseLeave = () => {
-      // Reset all icons to base scale when mouse leaves
       icons.forEach((icon) => {
-        iconScales.set(icon, baseScale);
-        const wrapperDiv = icon.parentElement;
-        const baseSize = iconBaseSizes.get(icon);
-
-        // Reset wrapper div width to base size
-        if (baseSize && wrapperDiv) {
-          gsap.to(wrapperDiv, {
-            width: baseSize.width,
-            duration: 0.3,
-            ease: "power2.out",
-          });
-        }
-
-        gsap.to(icon, {
-          scale: baseScale,
-          duration: 0.3,
-          ease: "power2.out",
-        });
+        const { baseSize } = getIconData(icon);
+        if (baseSize) animateIcon(icon, CONFIG.baseScale, baseSize.width);
       });
-
-      // Reset dock size
       animateDockSize();
-      // Note: Global mouse handler will manage dock visibility
     };
 
-    // Initialize dock as hidden
-    gsap.set(dockSection, { y: dockHiddenY });
-
-    // Add event listeners
-    dock.addEventListener("mousemove", handleMouseMove);
-    dock.addEventListener("mouseleave", handleMouseLeave);
-
-    // Global mouse move to detect cursor near bottom of screen
     const handleGlobalMouseMove = (e) => {
-      // Check if mouse is over the dock - if so, keep it visible
       const dockRect = dockSection.getBoundingClientRect();
       const isOverDock =
         e.clientX >= dockRect.left &&
@@ -199,37 +144,22 @@ const Dock = () => {
         e.clientY >= dockRect.top &&
         e.clientY <= dockRect.bottom;
 
-      if (isOverDock) {
-        gsap.to(dockSection, {
-          y: dockVisibleY,
-          duration: 0.4,
-          ease: "power2.out",
-        });
-        return;
-      }
-
-      // Check if cursor is near bottom of screen to reveal dock
-      const distanceFromBottom = window.innerHeight - e.clientY;
-      if (distanceFromBottom <= revealDistance) {
-        // Reveal dock by sliding it up
-        gsap.to(dockSection, {
-          y: dockVisibleY,
-          duration: 0.4,
-          ease: "power2.out",
-        });
+      if (
+        isOverDock ||
+        window.innerHeight - e.clientY <= CONFIG.revealDistance
+      ) {
+        revealDock();
       } else {
-        // Hide dock by sliding it down
-        gsap.to(dockSection, {
-          y: dockHiddenY,
-          duration: 0.4,
-          ease: "power2.out",
-        });
+        hideDock();
       }
     };
 
+    // Initialize and setup
+    gsap.set(dockSection, { y: CONFIG.dockHiddenY });
+    dock.addEventListener("mousemove", handleMouseMove);
+    dock.addEventListener("mouseleave", handleMouseLeave);
     window.addEventListener("mousemove", handleGlobalMouseMove);
 
-    // Cleanup function
     return () => {
       dock.removeEventListener("mousemove", handleMouseMove);
       dock.removeEventListener("mouseleave", handleMouseLeave);
