@@ -1,3 +1,9 @@
+const WELCOME_TEXT = {
+  logo_text: "Adrian's Portfolio",
+  subtitle_text: "Hey, I'm Adrian! Welcome to my",
+  title_text: "portfolio",
+};
+
 const navLinks = [
   {
     id: 1,
@@ -205,6 +211,7 @@ const gallery = [
 ];
 
 export {
+  WELCOME_TEXT,
   navLinks,
   navIcons,
   dockApps,
